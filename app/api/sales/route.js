@@ -1,12 +1,28 @@
 import { NextResponse } from "next/server";
 import { addSale, deleteSale, getSales } from "@/lib/store";
+import { getUserFromToken, getSessionCookieName } from "@/lib/auth";
 
-export async function GET() {
-  const sales = await getSales();
+function getRequestUser(request) {
+  const token = request.cookies.get(getSessionCookieName())?.value;
+  return getUserFromToken(token);
+}
+
+export async function GET(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  const sales = await getSales(user);
   return NextResponse.json(sales);
 }
 
 export async function POST(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.customer || !body.payment || !body.productId) {
@@ -17,7 +33,7 @@ export async function POST(request) {
   }
 
   try {
-    const sale = await addSale(body);
+    const sale = await addSale(body, user);
     return NextResponse.json(sale, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });
@@ -25,6 +41,11 @@ export async function POST(request) {
 }
 
 export async function DELETE(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.id) {
@@ -35,7 +56,7 @@ export async function DELETE(request) {
   }
 
   try {
-    await deleteSale(body.id);
+    await deleteSale(body.id, user);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

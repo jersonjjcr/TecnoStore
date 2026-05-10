@@ -25,21 +25,42 @@ Base full-stack con React y Next.js para una tienda de accesorios, ventas y repa
 - `GET /api/repairs`
 - `POST /api/repairs`
 - `PATCH /api/repairs/:id`
+- `POST /api/auth/register` (registro de tienda con pago simulado)
+- `GET /api/auth/stores` (admin)
+- `PATCH /api/auth/stores` (autorizar tienda desde admin)
 
 ## Variables de entorno
 
 Crea un archivo `.env.local` con:
 
 ```bash
-MONGODB_URI=tu_cadena_de_conexion_de_mongodb
+MONGODB_URI=mongodb://127.0.0.1:27017
 MONGODB_DB=tecnostore
 ```
 
-Puedes usar MongoDB Atlas para que funcione bien con Vercel.
+La app espera una base de datos Mongo local en `localhost:27017`.
+
+## Instalar MongoDB local en Windows
+
+1. Descarga MongoDB Community Server desde https://www.mongodb.com/try/download/community
+2. Instala MongoDB y, durante la instalación, activa la opción de servicio si quieres que arranque automáticamente.
+3. Si no instalas el servicio, puedes iniciar el servidor con:
+
+```powershell
+"C:\Program Files\MongoDB\Server\<version>\bin\mongod.exe"
+```
+
+4. Opcionalmente, usa Docker si prefieres no instalarlo directamente:
+
+```powershell
+docker run -d -p 27017:27017 --name tecnostore-mongo mongo:7.0
+```
 
 ## Como correrlo
 
-Desde `/Users/jersoncontrerasroman/Documents/New project/tienda-web`:
+Asegúrate de que MongoDB esté corriendo localmente antes de iniciar la app.
+
+Desde la carpeta del proyecto:
 
 ```bash
 npm install

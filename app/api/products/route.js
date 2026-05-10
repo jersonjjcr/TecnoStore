@@ -1,12 +1,28 @@
 import { NextResponse } from "next/server";
 import { addProduct, getProducts, deleteProduct } from "@/lib/store";
+import { getUserFromToken, getSessionCookieName } from "@/lib/auth";
 
-export async function GET() {
-  const products = await getProducts();
+function getRequestUser(request) {
+  const token = request.cookies.get(getSessionCookieName())?.value;
+  return getUserFromToken(token);
+}
+
+export async function GET(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  const products = await getProducts(user);
   return NextResponse.json(products);
 }
 
 export async function POST(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.name || !body.category) {
@@ -26,11 +42,16 @@ export async function POST(request) {
     );
   }
 
-  const product = await addProduct(body);
+  const product = await addProduct(body, user);
   return NextResponse.json(product, { status: 201 });
 }
 
 export async function DELETE(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.id) {
@@ -41,7 +62,7 @@ export async function DELETE(request) {
   }
 
   try {
-    await deleteProduct(body.id);
+    await deleteProduct(body.id, user);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

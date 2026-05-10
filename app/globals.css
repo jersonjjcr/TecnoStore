@@ -64,6 +64,42 @@ a {
   padding: 24px;
 }
 
+.auth-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: min(520px, 100%);
+  padding: 34px 32px;
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: var(--shadow);
+}
+
+.auth-card h2 {
+  margin-top: 10px;
+  margin-bottom: 22px;
+  font-size: clamp(1.8rem, 2.5vw, 2.4rem);
+}
+
+.auth-footer {
+  margin-top: 22px;
+  color: var(--text-soft);
+  font-size: 0.95rem;
+  line-height: 1.7;
+}
+
+.btn-secondary {
+  color: var(--primary);
+  background: rgba(17, 61, 107, 0.08);
+  border: 1px solid rgba(17, 61, 107, 0.12);
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -475,4 +511,39 @@ h3 {
   .list-item {
     flex-direction: column;
   }
+}
+
+/* Stripe Payment Form Styles */
+.stripe-form {
+  margin-top: 20px;
+}
+
+.card-element-container {
+  padding: 14px 16px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--surface-strong);
+  transition: border-color 180ms ease, transform 180ms ease;
+}
+
+.card-element-container:focus-within {
+  border-color: rgba(17, 61, 107, 0.25);
+  transform: translateY(-1px);
+}
+
+.StripeElement {
+  width: 100%;
+  padding: 0;
+}
+
+.StripeElement--focus {
+  box-shadow: none !important;
+}
+
+.StripeElement--invalid {
+  border-color: var(--danger);
+}
+
+.StripeElement--webkit-autofill {
+  background: transparent !important;
 }

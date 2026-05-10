@@ -1,12 +1,28 @@
 import { NextResponse } from "next/server";
 import { addRepair, deleteRepair, getRepairs } from "@/lib/store";
+import { getUserFromToken, getSessionCookieName } from "@/lib/auth";
 
-export async function GET() {
-  const repairs = await getRepairs();
+function getRequestUser(request) {
+  const token = request.cookies.get(getSessionCookieName())?.value;
+  return getUserFromToken(token);
+}
+
+export async function GET(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
+  const repairs = await getRepairs(user);
   return NextResponse.json(repairs);
 }
 
 export async function POST(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.customer || !body.phone || !body.device || !body.issue) {
@@ -24,11 +40,16 @@ export async function POST(request) {
     );
   }
 
-  const repair = await addRepair(body);
+  const repair = await addRepair(body, user);
   return NextResponse.json(repair, { status: 201 });
 }
 
 export async function DELETE(request) {
+  const user = getRequestUser(request);
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+
   const body = await request.json();
 
   if (!body.id) {
@@ -39,7 +60,7 @@ export async function DELETE(request) {
   }
 
   try {
-    await deleteRepair(body.id);
+    await deleteRepair(body.id, user);
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

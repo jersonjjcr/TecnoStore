@@ -3,11 +3,17 @@
 import { useEffect, useState } from "react";
 import * as XLSX from "xlsx";
 
-const views = [
+const storeViews = [
   { id: "dashboard", label: "Resumen" },
   { id: "sales", label: "Ventas" },
   { id: "inventory", label: "Inventario" },
   { id: "repairs", label: "Reparaciones" },
+  { id: "settings", label: "Configuraciones" }
+];
+
+const adminViews = [
+  { id: "dashboard", label: "Resumen" },
+  { id: "subscriptions", label: "Suscripciones" },
   { id: "settings", label: "Configuraciones" }
 ];
 
@@ -16,6 +22,7 @@ const viewTitles = {
   sales: "Modulo de ventas",
   inventory: "Control de inventario",
   repairs: "Servicio tecnico",
+  subscriptions: "Suscripciones de tiendas",
   settings: "Configuraciones"
 };
 
@@ -25,23 +32,36 @@ const emptyData = {
   repairs: []
 };
 
-export default function DashboardApp() {
+export default function DashboardApp({ user, onLogout }) {
   const [activeView, setActiveView] = useState("dashboard");
   const [data, setData] = useState(emptyData);
+  const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [settings, setSettings] = useState({
-    storeName: "TecnoStore",
+    storeName: user?.role === "admin" ? "Administración" : user?.storeName || "TecnoStore",
     brandCopy:
-      "Ventas, inventario y servicio tecnico para una tienda de accesorios y reparacion de telefonos.",
+      user?.role === "admin"
+        ? "Panel administrativo para supervisar tiendas y suscripciones."
+        : "Ventas, inventario y servicio técnico para una tienda de accesorios y reparación de teléfonos.",
     lowStockThreshold: 5,
-    notifications: true
+    notifications: true,
+    subscription: user?.subscription || "N/A"
   });
 
+  const currentViews = user?.role === "admin" ? adminViews : storeViews;
+
   useEffect(() => {
-    loadData();
-  }, []);
+    async function bootstrap() {
+      await loadData();
+      if (user?.role === "admin") {
+        await loadStores();
+      }
+    }
+
+    bootstrap();
+  }, [user]);
 
   useEffect(() => {
     const savedSettings = window.localStorage.getItem("dashboardSettings");
@@ -77,6 +97,15 @@ export default function DashboardApp() {
       setError(loadError.message || "No se pudo cargar la informacion.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadStores() {
+    try {
+      const response = await fetchJson("/api/auth/stores");
+      setStores(response.stores || []);
+    } catch {
+      setStores([]);
     }
   }
 
@@ -137,6 +166,16 @@ export default function DashboardApp() {
     }
   }
 
+  async function authorizeStore(id) {
+    try {
+      await patchJson("/api/auth/stores", { id });
+      setToast("Tienda autorizada correctamente.");
+      await loadStores();
+    } catch (authorizeError) {
+      setToast(authorizeError.message || "No se pudo autorizar la tienda.");
+    }
+  }
+
   async function saveSettings(newSettings) {
     setSettings((current) => ({ ...current, ...newSettings }));
     setToast("Configuracion guardada.");
@@ -180,7 +219,7 @@ export default function DashboardApp() {
           </div>
 
           <nav className="nav" aria-label="Secciones principales">
-            {views.map((view) => (
+            {currentViews.map((view) => (
               <button
                 key={view.id}
                 className={`nav-link ${activeView === view.id ? "is-active" : ""}`}
@@ -201,6 +240,20 @@ export default function DashboardApp() {
                   <p className="muted">{alert.description}</p>
                 </div>
               ))}
+            </div>
+          </section>
+
+          <section className="sidebar-panel">
+            <p className="eyebrow">Sesión</p>
+            <div className="stack">
+              <div className="list-item" style={{ flexDirection: "column", alignItems: "flex-start" }}>
+                <strong>{user.name}</strong>
+                <p className="muted">Rol: {user.role}</p>
+                <p className="muted">Plan: {settings.subscription}</p>
+              </div>
+              <button className="btn btn-small" type="button" onClick={onLogout}>
+                Cerrar sesión
+              </button>
             </div>
           </section>
         </aside>
@@ -245,6 +298,8 @@ export default function DashboardApp() {
               activeView={activeView}
               data={data}
               settings={settings}
+              user={user}
+              stores={stores}
               onCreateSale={createSale}
               onDeleteSale={deleteSale}
               onCreateProduct={createProduct}
@@ -253,6 +308,7 @@ export default function DashboardApp() {
               onDeleteRepair={deleteRepair}
               onAdvanceRepair={advanceRepairStatus}
               onSaveSettings={saveSettings}
+              onAuthorizeStore={authorizeStore}
             />
           ) : null}
         </main>
@@ -267,6 +323,8 @@ function ViewRenderer({
   activeView,
   data,
   settings,
+  user,
+  stores,
   onCreateSale,
   onDeleteSale,
   onCreateProduct,
@@ -274,7 +332,8 @@ function ViewRenderer({
   onCreateRepair,
   onDeleteRepair,
   onAdvanceRepair,
-  onSaveSettings
+  onSaveSettings,
+  onAuthorizeStore
 }) {
   switch (activeView) {
     case "sales":
@@ -290,8 +349,10 @@ function ViewRenderer({
           onAdvanceRepair={onAdvanceRepair}
         />
       );
+    case "subscriptions":
+      return <SubscriptionsView stores={stores} onAuthorizeStore={onAuthorizeStore} />;
     case "settings":
-      return <SettingsView settings={settings} onSaveSettings={onSaveSettings} />;
+      return <SettingsView settings={settings} user={user} onSaveSettings={onSaveSettings} />;
     default:
       return <DashboardView data={data} settings={settings} />;
   }
@@ -404,7 +465,9 @@ function SalesView({ data, onCreateSale, onDeleteSale }) {
       quantity: Number(formData.get("quantity") || 0)
     });
 
-    event.currentTarget.reset();
+    if (event.currentTarget) {
+      event.currentTarget.reset();
+    }
   }
 
   function exportToExcel() {
@@ -535,7 +598,9 @@ function InventoryView({ data, onCreateProduct, onDeleteProduct }) {
       price: Number(formData.get("price") || 0)
     });
 
-    event.currentTarget.reset();
+    if (event.currentTarget) {
+      event.currentTarget.reset();
+    }
   }
 
   return (
@@ -627,7 +692,9 @@ function RepairsView({ data, onCreateRepair, onDeleteRepair, onAdvanceRepair }) 
       estimate: Number(formData.get("estimate") || 0)
     });
 
-    event.currentTarget.reset();
+    if (event.currentTarget) {
+      event.currentTarget.reset();
+    }
   }
 
   return (
@@ -716,6 +783,110 @@ function RepairsView({ data, onCreateRepair, onDeleteRepair, onAdvanceRepair }) 
               </article>
             ))}
         </div>
+      </PanelCard>
+    </div>
+  );
+}
+
+function SubscriptionsView({ stores, onAuthorizeStore }) {
+  return (
+    <div className="content-grid">
+      <PanelCard eyebrow="Tiendas registradas" title="Administración de suscripciones">
+        <div className="list">
+          {stores.length === 0 ? (
+            <p className="muted">No hay tiendas registradas.</p>
+          ) : (
+            stores.map((store) => (
+              <article key={store.id} className="list-item">
+                <div>
+                  <strong>{store.storeName}</strong>
+                  <p className="muted">{store.email}</p>
+                  <p className="muted">Inicio de suscripción: {formatDate(store.subscriptionStart)}</p>
+                  <div className="list-meta">
+                    <Badge tone={store.authorized ? "success" : "warning"}>
+                      {store.authorized ? "Activa" : "Pendiente"}
+                    </Badge>
+                    <Badge tone="primary">{store.subscription}</Badge>
+                  </div>
+                </div>
+                <div className="stack" style={{ alignItems: "flex-end", gap: 8 }}>
+                  {store.authorized ? (
+                    <span className="muted">Autorizada</span>
+                  ) : (
+                    <button
+                      className="btn btn-small"
+                      type="button"
+                      onClick={() => onAuthorizeStore(store.id)}
+                    >
+                      Autorizar tienda
+                    </button>
+                  )}
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+      </PanelCard>
+    </div>
+  );
+}
+
+function SettingsView({ settings, user, onSaveSettings }) {
+  async function handleSubmit(event) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    onSaveSettings({
+      storeName: String(formData.get("storeName") || "").trim(),
+      brandCopy: String(formData.get("brandCopy") || "").trim(),
+      lowStockThreshold: Number(formData.get("lowStockThreshold") || 5),
+      notifications: formData.get("notifications") === "on"
+    });
+  }
+
+  return (
+    <div className="content-grid">
+      <PanelCard eyebrow="Perfil" title="Información de cuenta">
+        <div className="stack">
+          <div className="mini-card">
+            <strong>Rol</strong>
+            <p className="muted">{user.role}</p>
+          </div>
+          <div className="mini-card">
+            <strong>Plan</strong>
+            <p className="muted">{settings.subscription}</p>
+          </div>
+          <div className="mini-card">
+            <strong>Nombre de tienda</strong>
+            <p className="muted">{settings.storeName}</p>
+          </div>
+        </div>
+      </PanelCard>
+
+      <PanelCard eyebrow="Configuración" title="Ajustes del panel">
+        <form onSubmit={handleSubmit}>
+          <div className="form-grid">
+            <Field label="Nombre de la tienda" htmlFor="settings-store-name">
+              <input id="settings-store-name" name="storeName" defaultValue={settings.storeName} required />
+            </Field>
+
+            <Field label="Mensaje de bienvenida" htmlFor="settings-brand-copy" full>
+              <textarea id="settings-brand-copy" name="brandCopy" defaultValue={settings.brandCopy} />
+            </Field>
+
+            <Field label="Límite de stock bajo" htmlFor="settings-low-stock">
+              <input id="settings-low-stock" name="lowStockThreshold" type="number" min="1" defaultValue={settings.lowStockThreshold} required />
+            </Field>
+
+            <Field label="Notificaciones" htmlFor="settings-notifications">
+              <input id="settings-notifications" name="notifications" type="checkbox" defaultChecked={settings.notifications} />
+            </Field>
+          </div>
+          <div className="actions">
+            <button className="btn btn-primary" type="submit">
+              Guardar ajustes
+            </button>
+          </div>
+        </form>
       </PanelCard>
     </div>
   );
